@@ -16,14 +16,15 @@ library(purrr)
 library(magrittr)
 library(listviewer)
 library(stringr)
-library(getPass)
+library(lubridate)
+library(dplyr)
 
-#api_key <- getPass()
-
-api_key <- "e50010f919a94a659487dd68ae57974b"
+api_key <- read.table(file = "/Users/ryanweber/Desktop/CUNY/Data 607 Db/Assignments/Week 9/api_key.txt", stringsAsFactors = FALSE)[1, 1]
 ```
 
-# How many of the Oscar foreign film nominees were reviewed by the NY Times as 'Critic's Picks'
+# How many of the Oscar foreign film nominees were reviewed by the NY Times as 'Critic's Picks' (2010-2015)
+
+github: https://github.com/rweberc/Data607_Assignment9
 
 ### Get Critic's Picks reviews for the past 5 years
 ```{r}
@@ -42,13 +43,68 @@ getReviews <- function(offset){
 }
 
 # Retrieve Critics Picks for the past 5 years #940
-titlesList <- map(seq(0,40, 20), getReviews)
+titlesList <- map(seq(340,1400, 20), getReviews)
 
 #jsonedit(titlesList)
 
-titleDf <- map_df(titlesList, extract, c('display_title', 'publication_date'))
+titleDf <- map_df(titlesList, extract)
 
-titleDf
+# Filter publication date from 2013 to 
+titleDf$publication_date <- ymd(titleDf$publication_date)
+summary(titleDf$publication_date)
+titleDf <- titleDf %>% filter(year(publication_date) >= 2010 & year(publication_date) <= 2015)
+
+head(titleDf)
 ```
 
 ### Read in database of Oscar nominees and winners
+```{r}
+oscarDf <- read.csv("https://raw.githubusercontent.com/rweberc/Data607_Assignment9/master/database.csv", 
+                    stringsAsFactors = FALSE)
+
+# Parse year and select columns of interest
+oscarDf$Year <- str_replace(oscarDf$Year, "/.*", "")
+
+oscarDf$Year <- as.numeric(oscarDf$Year)
+
+oscarDf <- oscarDf %>% 
+  filter(Year >= 2010 & Year <= 2015) %>%
+  select(Film, Name, Year, Award, Winner)
+
+foreignDf <- oscarDf %>%
+  filter(Award == "Foreign Language Film")
+  
+
+head(foreignDf)
+```
+
+### Compare results
+```{r}
+foreignCriticPickDf <- inner_join(foreignDf, titleDf, by=c("Name"="display_title"))
+
+foreignCriticPickDf
+```
+
+Only 2 out of 30 Foreign Language Film nominees look to have been Critic's Picks.
+
+### How about Oscar winners overall?
+```{r}
+winnerDf <- oscarDf %>%
+  filter(Winner == 1)
+
+# Film name in database is sometimes in different
+winnerCriticPickDf1 <- inner_join(winnerDf, titleDf, by=c("Film"="display_title")) 
+winnerCriticPickDf2 <- inner_join(winnerDf, titleDf, by=c("Name"="display_title"))
+
+winnerCriticPickDf <- bind_rows(winnerCriticPickDf1, winnerCriticPickDf2)
+
+head(winnerCriticPickDf)
+```
+
+Only 6 out of 74 Oscar winners overall were Critic's Picks.
+
+The low numbers make me wonder if there is some assumption I missed.  Could possibly lose some cases due to special character differences between the two datasets.
+
+Not sure if this is really an indication that the Oscars are missing important movies or if the Critics Picks are.
+
+Could compare these against a more reputable international film award source to try to get a sense of that.

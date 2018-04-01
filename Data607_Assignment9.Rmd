@@ -1,0 +1,54 @@
+---
+title: "Assignment9"
+author: "Ryan Weber"
+date: "April 1, 2018"
+output: 
+  html_document:
+    theme: lumen
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(httr)
+library(purrr)
+library(magrittr)
+library(listviewer)
+library(stringr)
+library(getPass)
+
+#api_key <- getPass()
+
+api_key <- "e50010f919a94a659487dd68ae57974b"
+```
+
+# How many of the Oscar foreign film nominees were reviewed by the NY Times as 'Critic's Picks'
+
+### Get Critic's Picks reviews for the past 5 years
+```{r}
+reviewDf <- NULL
+
+getReviews <- function(offset){
+  # Create URL
+  url <- str_c("https://api.nytimes.com/svc/movies/v2/reviews/search.json?critics-pick=Y&api-key=", 
+               api_key, "&offset=", offset)
+  
+  # Get content
+  reviewList <- content(GET(url), "parse")
+  
+  # Parse relevant fields to df
+  reviewList$results %>% map_df(extract, c('display_title', 'publication_date'))
+}
+
+# Retrieve Critics Picks for the past 5 years #940
+titlesList <- map(seq(0,40, 20), getReviews)
+
+#jsonedit(titlesList)
+
+titleDf <- map_df(titlesList, extract, c('display_title', 'publication_date'))
+
+titleDf
+```
+
+### Read in database of Oscar nominees and winners
